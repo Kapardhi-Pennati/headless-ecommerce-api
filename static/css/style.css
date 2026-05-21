@@ -621,8 +621,11 @@ input[type="checkbox"]:focus-visible {
     aspect-ratio: 4/5;
     background-color: var(--gray-100);
     /* Hero image: set via inline style or JS when an image asset is available */
+    /* Moved from template inline style to static CSS to satisfy linters and ensure proper loading */
+    background-image: url("/static/img/hero-sale.jpg");
     background-size: cover;
-    background-position: center;
+    background-position: top center;
+    background-repeat: no-repeat;
     position: relative;
 }
 
