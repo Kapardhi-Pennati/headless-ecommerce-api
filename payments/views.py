@@ -67,7 +67,7 @@ class GenerateUPIQRView(APIView):
         img = qr.make_image(fill_color="black", back_color="white")
 
         buf = io.BytesIO()
-        img.save(buf, format="PNG")
+        img.save(buf, kind="PNG")
         buf.seek(0)
         png_bytes = buf.getvalue()
         cache.set(cache_key, png_bytes, 600)

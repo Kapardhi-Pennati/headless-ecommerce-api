@@ -2,6 +2,8 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
 
+from accounts.models import User
+
 
 @override_settings(
     SECURE_SSL_REDIRECT=False,
@@ -10,6 +12,12 @@ class GenerateUPIQRViewTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.url = reverse("payment-qr-code")
+        self.user = User.objects.create_user(
+            username="test-user",
+            email="test@example.com",
+            password="test-pass-123",
+        )
+        self.client.force_authenticate(user=self.user)
 
     def test_qr_code_returns_png(self):
         response = self.client.get(self.url, {"amount": "150.00", "note": "Test"})
