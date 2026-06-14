@@ -4,63 +4,32 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.generic import TemplateView
-from core.views import admin_dashboard_view
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 
 # ─── Page Views ─────────────────────────────────────────────────
 urlpatterns = [
     # Django admin
     path("django-admin/", admin.site.urls),
+    # OpenAPI Schema endpoints
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/schema/swagger-ui/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
+    path(
+        "api/schema/redoc/",
+        SpectacularRedocView.as_view(url_name="schema"),
+        name="redoc",
+    ),
     # API endpoints
     path("api/auth/", include("accounts.urls")),
     path("api/store/", include("store.urls")),
     path("api/payments/", include("payments.urls")),
-    # Frontend pages (served by Django templates)
-    path("", TemplateView.as_view(template_name="index.html"), name="home"),
-    path("login/", TemplateView.as_view(template_name="login.html"), name="login-page"),
-    path(
-        "signup/", TemplateView.as_view(template_name="signup.html"), name="signup-page"
-    ),
-    path(
-        "catalog/",
-        TemplateView.as_view(template_name="catalog.html"),
-        name="catalog-page",
-    ),
-    path(
-        "product/<slug:slug>/",
-        TemplateView.as_view(template_name="product_detail.html"),
-        name="product-page",
-    ),
-    path("cart/", TemplateView.as_view(template_name="cart.html"), name="cart-page"),
-    path("wishlist/", TemplateView.as_view(template_name="wishlist.html"), name="wishlist-page"),
-    path(
-        "checkout/",
-        TemplateView.as_view(
-            template_name="checkout.html",
-            extra_context={
-                "upi_id": settings.UPI_ID,
-                "upi_display_name": settings.UPI_DISPLAY_NAME,
-            },
-        ),
-        name="checkout-page",
-    ),
-    path(
-        "orders/", TemplateView.as_view(template_name="orders.html"), name="orders-page"
-    ),
-    path(
-        "invoice/<int:pk>/",
-        TemplateView.as_view(template_name="invoice.html"),
-        name="invoice-page",
-    ),
-    path("shipping/", TemplateView.as_view(template_name="shipping.html"), name="shipping-page"),
-    path("policy/", TemplateView.as_view(template_name="policy.html"), name="policy-page"),
-    path("contact/", TemplateView.as_view(template_name="contact.html"), name="contact-page"),
-    path("about/", TemplateView.as_view(template_name="about.html"), name="about-page"),
-    path(
-        "admin-dashboard/",
-        admin_dashboard_view,
-        name="admin-dashboard",
-    ),
 ]
 
 if settings.DEBUG:

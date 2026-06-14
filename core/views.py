@@ -1,5 +1,4 @@
-from django.http import JsonResponse, HttpResponse
-from django.shortcuts import redirect, render
+from django.http import JsonResponse
 from django.conf import settings
 from django.utils.html import escape
 from rest_framework_simplejwt.exceptions import TokenError
@@ -10,6 +9,11 @@ from core.security import audit_log, get_client_ip
 
 
 def admin_dashboard_view(request):
+    """
+    Headless admin check endpoint.
+    Returns JSON indicating if the current user has admin access.
+    For a headless API backend the actual dashboard UI is served by the frontend.
+    """
     user = getattr(request, "user", None) if getattr(request, "user", None) and request.user.is_authenticated else None
 
     if user is None:
@@ -32,11 +36,12 @@ def admin_dashboard_view(request):
                 user = None
 
     if user is None:
-        return redirect(f"/login/?next={request.path}")
+        return JsonResponse({"error": "Authentication required."}, status=401)
 
     if not (user.is_superuser or getattr(user, "role", None) == "admin"):
-        return redirect("home")
-    return render(request, "admin_dashboard.html")
+        return JsonResponse({"error": "Admin access required."}, status=403)
+
+    return JsonResponse({"status": "ok", "user": user.email, "role": getattr(user, "role", "admin")})
 
 def csrf_failure(request, reason=""):
     """
@@ -54,13 +59,7 @@ def csrf_failure(request, reason=""):
         severity="WARNING"
     )
     
-    if request.path.startswith('/api/'):
-        return JsonResponse(
-            {"error": "Security validation failed (CSRF)."},
-            status=403
-        )
-    
-    return HttpResponse(
-        "<h1>403 Forbidden</h1><p>Security validation failed. Please refresh and try again.</p>",
+    return JsonResponse(
+        {"error": "Security validation failed (CSRF)."},
         status=403
     )

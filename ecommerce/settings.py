@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
+    "drf_spectacular",
     # Local apps
     "core",  # Security utilities
     "accounts",
@@ -131,22 +132,22 @@ if db_url:
         )
     }
 elif os.getenv("DB_NAME"):
-    # Use individual variables from .env
-    DATABASES = {
-        "default": {
-            "ENGINE": os.getenv("DB_ENGINE", "django.db.backends.mysql"),
-            "NAME": os.getenv("DB_NAME"),
-            "USER": os.getenv("DB_USER"),
-            "PASSWORD": os.getenv("DB_PASSWORD"),
-            "HOST": os.getenv("DB_HOST", "localhost"),
-            "PORT": os.getenv("DB_PORT", "3306"),
-            "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "300")),
-            "OPTIONS": {
-                "charset": "utf8mb4",
-                "init_command": "SET SESSION wait_timeout=600",
-            }
-        }
+    _db_engine = os.getenv("DB_ENGINE", "django.db.backends.mysql")
+    _db_conf = {
+        "ENGINE": _db_engine,
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST", "localhost"),
+        "PORT": os.getenv("DB_PORT", "3306"),
+        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "300")),
     }
+    if "mysql" in _db_engine:
+        _db_conf["OPTIONS"] = {
+            "charset": "utf8mb4",
+            "init_command": "SET SESSION wait_timeout=600",
+        }
+    DATABASES = {"default": _db_conf}
 else:
     DATABASES = {
         "default": {
@@ -222,6 +223,17 @@ REST_FRAMEWORK = {
     },
     #API versioning (future-proof)
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.AcceptHeaderVersioning",
+    # OpenAPI Schema Auto generation
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Iri Collections E-Commerce API",
+    "DESCRIPTION": "Secure modular backend API for Indian e-commerce marketplaces.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Auth configuration for swagger-ui
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -348,7 +360,6 @@ CELERY_TASK_ACKS_LATE = True
 # ─────────────────────────────────────────────────────────────────────────────
 
 STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATIC_HOST = os.getenv("STATIC_HOST", "")
 if STATIC_HOST:

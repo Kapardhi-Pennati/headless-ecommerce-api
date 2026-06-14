@@ -102,13 +102,7 @@ class SecurityHeadersMiddleware:
         # and managed challenge scripts.
         response.setdefault(
             "Content-Security-Policy",
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://challenges.cloudflare.com https://static.cloudflareinsights.com; "
-            "style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-            "font-src 'self' data: https://unpkg.com https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-            "img-src 'self' data: blob: https://api.qrserver.com https://*.iricollections.in https://*.hostinger.com https://challenges.cloudflare.com; "
-            "connect-src 'self' https://api.postalpincode.in https://challenges.cloudflare.com https://cloudflareinsights.com;"
-            "frame-src https://challenges.cloudflare.com;"
+            "default-src 'none'; frame-ancestors 'none';"
         )
 
         return response

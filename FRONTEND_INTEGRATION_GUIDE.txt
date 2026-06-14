@@ -1,0 +1,294 @@
+================================================================================
+  FRONTEND INTEGRATION GUIDE — Headless E-Commerce REST API Backend
+================================================================================
+
+This document explains how to connect any frontend (HTML/CSS/JS, React, Next.js,
+Vue, etc.) to this headless Django REST API backend. It is written for both
+human developers AND AI coding agents (Claude, Gemini, ChatGPT, Cursor, etc.)
+to use as a prompt/context when generating frontend code.
+
+================================================================================
+1. BACKEND OVERVIEW
+================================================================================
+
+This backend is a Django 5 + Django REST Framework API that provides:
+  - JWT Authentication (via HttpOnly cookies)
+  - Product Catalog (categories, products, search, sort, pagination)
+  - Cart & Wishlist Management
+  - Order Management with stock reservation system
+  - Flexible Payment Gateway (Razorpay + Cash on Delivery)
+  - Admin Order Management & Analytics
+  - OTP-based checkout verification
+  - Full OpenAPI 3 schema at /api/schema/
+
+Tech stack: Django 5, DRF, SimpleJWT, Celery, Redis, MySQL/PostgreSQL/SQLite
+
+================================================================================
+2. HOW TO GET THE API SCHEMA (CRITICAL FIRST STEP)
+================================================================================
+
+Before generating ANY frontend code, fetch the full API schema:
+
+  GET http://<backend-host>/api/schema/
+
+This returns the complete OpenAPI 3 JSON schema with every endpoint, request
+body, response shape, and authentication requirement. Feed this entire JSON
+to your AI agent as context.
+
+Interactive documentation is also available at:
+  - Swagger UI: http://<backend-host>/api/schema/swagger-ui/
+  - ReDoc:      http://<backend-host>/api/schema/redoc/
+
+================================================================================
+3. AUTHENTICATION FLOW
+================================================================================
+
+The backend uses JWT tokens stored in HttpOnly cookies. This means:
+  - Tokens are NOT accessible via JavaScript (XSS protection)
+  - All requests must include credentials (cookies)
+  - CSRF token is required for mutating requests (POST/PUT/PATCH/DELETE)
+
+STEP 1: Register a new user
+  POST /api/auth/register/
+  Body: { "email": "...", "password": "...", "full_name": "..." }
+
+STEP 2: Login
+  POST /api/auth/login/
+  Body: { "email": "...", "password": "..." }
+  Response sets HttpOnly cookies: iri_access, iri_refresh
+
+STEP 3: Include credentials in every request
+  fetch('/api/store/products/', { credentials: 'include' })
+
+STEP 4: Refresh token (when access token expires)
+  POST /api/auth/refresh/
+  (Cookie-based, no body needed)
+
+STEP 5: Logout
+  POST /api/auth/logout/
+
+GUEST CHECKOUT:
+  POST /api/auth/guest-session/   -> Creates anonymous session
+  POST /api/auth/convert-guest/   -> Converts guest to registered user
+
+OTP FLOW (for email verification):
+  POST /api/auth/request-otp/     -> Sends OTP to email
+  POST /api/auth/verify-otp/      -> Verifies OTP code
+
+================================================================================
+4. CORS CONFIGURATION
+================================================================================
+
+The backend must be configured to allow your frontend origin:
+
+In the backend .env file, set:
+  CORS_ALLOWED_ORIGINS=https://your-frontend-domain.com
+  CSRF_TRUSTED_ORIGINS=https://your-frontend-domain.com
+
+For local development:
+  CORS_ALLOWED_ORIGINS=http://localhost:3000
+  CSRF_TRUSTED_ORIGINS=http://localhost:3000
+
+================================================================================
+5. API ENDPOINTS REFERENCE
+================================================================================
+
+--- AUTH (/api/auth/) ---
+  POST /api/auth/guest-session/     Create guest session
+  POST /api/auth/convert-guest/     Convert guest to user
+  POST /api/auth/request-otp/       Request email OTP
+  POST /api/auth/verify-otp/        Verify OTP code
+  POST /api/auth/register/          Register new user
+  POST /api/auth/reset-password/    Reset password
+  POST /api/auth/login/             Login (sets JWT cookies)
+  POST /api/auth/refresh/           Refresh access token
+  POST /api/auth/logout/            Logout (clears cookies)
+  GET  /api/auth/profile/           Get user profile
+  PATCH /api/auth/profile/          Update user profile
+  GET  /api/auth/addresses/         List saved addresses
+  POST /api/auth/addresses/         Create new address
+  PATCH /api/auth/addresses/{id}/   Update address
+  DELETE /api/auth/addresses/{id}/  Delete address
+
+--- STORE (/api/store/) ---
+  GET  /api/store/categories/                   List categories
+  GET  /api/store/products/                     List products
+       Query params: ?category=<slug>&search=<term>&featured=true
+                     &sort=price_low|price_high|newest
+                     &page=<n>&page_size=<n>
+  GET  /api/store/products/<slug>/              Product detail
+
+  GET  /api/store/cart/                         Get user cart
+  POST /api/store/cart/                         Add item to cart
+       Body: { "product_id": 1, "quantity": 1 }
+  PATCH /api/store/cart/                        Update cart item qty
+       Body: { "item_id": 1, "quantity": 3 }
+  DELETE /api/store/cart/                       Remove item / clear cart
+       Body: { "item_id": 1 } or empty for clear
+
+  GET  /api/store/wishlist/                     Get wishlist
+  POST /api/store/wishlist/toggle/              Toggle product in wishlist
+       Body: { "product_id": 1 }
+
+  POST /api/store/orders/pincode-verify/        Verify delivery pincode
+       Body: { "pincode": "560001" }
+  POST /api/store/orders/otp/request/           Request checkout OTP
+  POST /api/store/orders/otp/verify/            Verify checkout OTP
+  GET  /api/store/orders/                       List user orders
+  POST /api/store/orders/create/                Create order from cart
+       Body: { "shipping_address": "...", "phone": "...",
+               "state": "...", "city": "...", "pincode": "...",
+               "street": "...", "recipient_name": "...",
+               "save_address": true, "notes": "..." }
+  POST /api/store/orders/confirm-payment/       Confirm UPI payment
+  POST /api/store/orders/cancel/                Cancel pending order
+  GET  /api/store/orders/<id>/                  Order detail
+
+--- PAYMENTS (/api/payments/) ---
+  GET  /api/payments/config/                    Get enabled payment methods
+       Response: { "razorpay": { "enabled": true, "key_id": "rzp_..." },
+                   "cod": { "enabled": true, "extra_fee": "50.00" } }
+
+  POST /api/payments/initialize/                Start payment
+       Body: { "order_id": 1, "method": "razorpay" | "cod" }
+       Razorpay response: { "razorpay_order_id": "...", "key_id": "...",
+                             "amount": 150000, "currency": "INR" }
+       COD response: { "status": "success", "method": "cod" }
+
+  POST /api/payments/verify/                    Verify Razorpay signature
+       Body: { "order_id": 1, "method": "razorpay",
+               "razorpay_order_id": "...",
+               "razorpay_payment_id": "...",
+               "razorpay_signature": "..." }
+
+--- ADMIN (/api/store/admin/) ---
+  GET/POST   /api/store/admin/products/         Product CRUD
+  GET/PUT    /api/store/admin/products/{id}/     Product detail/update
+  GET/POST   /api/store/admin/categories/        Category CRUD
+  GET        /api/store/admin/orders/            List all orders
+  GET        /api/store/admin/orders/{id}/       Order detail
+  PATCH      /api/store/admin/orders/{id}/status/  Update order status
+  POST       /api/store/admin/orders/{id}/tracking/ Upload tracking
+  GET        /api/store/admin/analytics/         Sales analytics
+  GET        /api/store/admin/traffic/           Traffic analytics
+
+================================================================================
+6. RAZORPAY CHECKOUT INTEGRATION (FRONTEND CODE)
+================================================================================
+
+After calling POST /api/payments/initialize/ with method "razorpay":
+
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    // response from /api/payments/initialize/
+    const options = {
+      key: response.key_id,
+      amount: response.amount,
+      currency: response.currency,
+      order_id: response.razorpay_order_id,
+      handler: function (paymentResult) {
+        // Send to backend for verification
+        fetch('/api/payments/verify/', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: orderId,
+            method: 'razorpay',
+            razorpay_order_id: paymentResult.razorpay_order_id,
+            razorpay_payment_id: paymentResult.razorpay_payment_id,
+            razorpay_signature: paymentResult.razorpay_signature
+          })
+        });
+      }
+    };
+    const rzp = new Razorpay(options);
+    rzp.open();
+  </script>
+
+================================================================================
+7. PROMPT TEMPLATE FOR AI FRONTEND GENERATION
+================================================================================
+
+Copy and paste this prompt to any AI agent (Claude, Gemini, ChatGPT, Cursor)
+to generate a complete frontend for this backend:
+
+--- START PROMPT ---
+
+I have a headless Django REST API e-commerce backend running at [YOUR_URL].
+The full OpenAPI schema is available at [YOUR_URL]/api/schema/.
+
+Build me a modern, responsive e-commerce frontend using [React/Next.js/HTML+JS].
+
+Requirements:
+1. Use cookie-based JWT authentication (credentials: 'include' on all fetches)
+2. Pages needed:
+   - Home page with featured products
+   - Product catalog with category filtering, search, and sorting
+   - Product detail page
+   - Cart page with quantity editing
+   - Wishlist page
+   - Checkout flow with address form and OTP verification
+   - Payment page (Razorpay integration + COD option)
+   - Order history and order detail pages
+   - Login / Register / Password Reset pages
+   - User profile with saved addresses
+3. Admin dashboard:
+   - Product management (CRUD)
+   - Order management with status updates
+   - Sales analytics charts
+4. Design: Modern, mobile-first, dark mode support, smooth animations
+5. API base URL: [YOUR_URL]/api/
+
+Here is the OpenAPI schema for reference:
+[PASTE THE SCHEMA JSON HERE OR LINK TO /api/schema/]
+
+--- END PROMPT ---
+
+================================================================================
+8. DEPLOYMENT CHECKLIST FOR NEW CLIENT
+================================================================================
+
+When deploying this backend for a new client:
+
+1. Clone the repository
+2. Update .env with:
+   - New SECRET_KEY (generate with: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())")
+   - Database credentials (DB_NAME, DB_USER, DB_PASSWORD, DB_HOST)
+   - CORS_ALLOWED_ORIGINS (frontend domain)
+   - CSRF_TRUSTED_ORIGINS (frontend domain)
+   - EMAIL settings (SMTP credentials)
+   - FRONTEND_URL
+3. Run migrations: python manage.py migrate
+4. Create superuser: python manage.py createsuperuser
+5. Configure payment settings in Django Admin:
+   - RAZORPAY_ENABLED = true/false
+   - RAZORPAY_KEY_ID = rzp_live_xxxxx
+   - RAZORPAY_KEY_SECRET = xxxxx
+   - COD_ENABLED = true/false
+   - COD_EXTRA_FEE = 50.00
+6. Generate the frontend using the AI prompt above
+7. Deploy frontend to Vercel/Netlify/Hostinger
+8. Deploy backend to VPS/Hostinger/Railway
+
+================================================================================
+9. SECURITY FEATURES ALREADY INCLUDED
+================================================================================
+
+This backend ships with enterprise-grade security out of the box:
+
+  - Argon2 password hashing (OWASP recommended)
+  - JWT in HttpOnly cookies (XSS-proof)
+  - CSRF protection on all mutating endpoints
+  - Rate limiting (per-user and per-IP)
+  - Account lockout after 5 failed logins
+  - Input validation and sanitization on all fields
+  - SQL injection protection (Django ORM parameterized queries)
+  - Audit logging for all security-relevant events
+  - HSTS, X-Frame-Options DENY, Content-Type nosniff
+  - Strict Content Security Policy
+  - Request ID tracking for log correlation
+  - Atomic stock reservations (prevents overselling)
+  - OTP verification for checkout (prevents fake orders)
+
+================================================================================
